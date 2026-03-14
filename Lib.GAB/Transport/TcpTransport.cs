@@ -9,10 +9,6 @@ using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Lib.GAB.Protocol;
 
-// Unity/Mono compatibility note:
-// Using dedicated threads instead of Task.Run for better compatibility
-// with Unity's Mono runtime which has limited ThreadPool support.
-
 namespace Lib.GAB.Transport
 {
     /// <summary>
@@ -81,7 +77,8 @@ namespace Lib.GAB.Transport
     }
 
     /// <summary>
-    /// TCP transport implementation for GABP
+    /// TCP transport implementation for GABP.
+    /// Uses dedicated threads for Unity/Mono compatibility.
     /// </summary>
     public class TcpTransport : ITransport
     {
@@ -110,7 +107,6 @@ namespace Lib.GAB.Transport
             Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
             _running = true;
 
-            // Use a dedicated thread instead of Task.Run for Unity/Mono compatibility
             var acceptThread = new Thread(() => AcceptConnectionsLoop(cancellationToken))
             {
                 IsBackground = true,
@@ -130,19 +126,15 @@ namespace Lib.GAB.Transport
             return Task.FromResult(0);
         }
 
-        /// <summary>
-        /// Synchronous accept loop for Unity/Mono compatibility
-        /// </summary>
         private void AcceptConnectionsLoop(CancellationToken cancellationToken)
         {
             while (_running && !cancellationToken.IsCancellationRequested)
             {
                 try
                 {
-                    // Use synchronous Accept for better Unity compatibility
                     if (!_listener.Pending())
                     {
-                        Thread.Sleep(50); // Small sleep to prevent busy-waiting
+                        Thread.Sleep(50);
                         continue;
                     }
                     
@@ -151,7 +143,6 @@ namespace Lib.GAB.Transport
                     
                     ConnectionEstablished?.Invoke(this, new ConnectionEstablishedEventArgs(connection));
                     
-                    // Start a dedicated thread for reading messages from this connection
                     var readThread = new Thread(() => ReadMessagesLoop(connection, cancellationToken))
                     {
                         IsBackground = true,
@@ -177,9 +168,6 @@ namespace Lib.GAB.Transport
             }
         }
 
-        /// <summary>
-        /// Synchronous read loop for Unity/Mono compatibility
-        /// </summary>
         private void ReadMessagesLoop(TcpConnection connection, CancellationToken cancellationToken)
         {
             var stream = connection._client.GetStream();
@@ -188,14 +176,12 @@ namespace Lib.GAB.Transport
 
             try
             {
-                // Set a read timeout so we can check cancellation periodically
-                stream.ReadTimeout = 1000; // 1 second timeout
+                stream.ReadTimeout = 1000;
                 
                 while (connection.IsConnected && !cancellationToken.IsCancellationRequested)
                 {
                     try
                     {
-                        // Blocking read - will timeout after ReadTimeout ms
                         var bytesRead = stream.Read(buffer, 0, buffer.Length);
                         if (bytesRead == 0)
                         {
@@ -210,7 +196,6 @@ namespace Lib.GAB.Transport
                     }
                     catch (IOException)
                     {
-                        // Read timeout - expected, continue to check cancellation
                         continue;
                     }
                 }
@@ -225,9 +210,6 @@ namespace Lib.GAB.Transport
             }
         }
 
-        /// <summary>
-        /// Synchronous message processing for Unity/Mono compatibility
-        /// </summary>
         private void ProcessMessages(TcpConnection connection, StringBuilder buffer)
         {
             while (true)
@@ -251,7 +233,6 @@ namespace Lib.GAB.Transport
                 var startIndex = contentLengthIndex + "Content-Length:".Length;
                 var endIndex = headerText.IndexOf('\r', startIndex);
                 if (endIndex == -1) endIndex = headerText.IndexOf('\n', startIndex);
-                // If no newline after the value, use end of header text
                 if (endIndex == -1) endIndex = headerText.Length;
 
                 var contentLengthStr = headerText.Substring(startIndex, endIndex - startIndex).Trim();
@@ -278,7 +259,6 @@ namespace Lib.GAB.Transport
                 }
                 catch (Exception)
                 {
-                    // Failed to parse message
                 }
 
                 // Remove processed message from buffer
