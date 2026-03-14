@@ -6,7 +6,6 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
-using Lib.GAB.Docs;
 using Lib.GAB.Events;
 using Lib.GAB.Protocol;
 using Lib.GAB.Tools;
@@ -50,7 +49,6 @@ namespace Lib.GAB.Server
         private readonly IToolRegistry _toolRegistry;
         private readonly IEventManager _eventManager;
         private readonly ConcurrentDictionary<string, SessionInfo> _sessions = new ConcurrentDictionary<string, SessionInfo>();
-        private DocsHttpServer _docsServer;
         private bool _disposed;
 
         private class SessionInfo
@@ -95,17 +93,11 @@ namespace Lib.GAB.Server
         public IEventManager Events => _eventManager;
 
         /// <summary>
-        /// Port the documentation HTTP server is listening on (0 if not started)
-        /// </summary>
-        public int DocsPort => _docsServer?.Port ?? 0;
-
-        /// <summary>
         /// Start the server
         /// </summary>
         public async Task StartAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
             await _transport.StartAsync(cancellationToken);
-            StartDocsServer();
         }
 
         /// <summary>
@@ -113,23 +105,7 @@ namespace Lib.GAB.Server
         /// </summary>
         public async Task StopAsync(CancellationToken cancellationToken = default(CancellationToken))
         {
-            _docsServer?.Stop();
             await _transport.StopAsync(cancellationToken);
-        }
-
-        private void StartDocsServer()
-        {
-            try
-            {
-                var appName = _config.AppInfo?.Name ?? "GABP Server";
-                var appVersion = _config.AppInfo?.Version ?? "1.0.0";
-                _docsServer = new DocsHttpServer(_toolRegistry, appName, appVersion);
-                _docsServer.Start(0);
-            }
-            catch
-            {
-                _docsServer = null;
-            }
         }
 
         private void SetupTransportEvents()
@@ -476,7 +452,6 @@ namespace Lib.GAB.Server
             if (_disposed) return;
             _disposed = true;
 
-            _docsServer?.Dispose();
             _transport?.Dispose();
         }
     }
