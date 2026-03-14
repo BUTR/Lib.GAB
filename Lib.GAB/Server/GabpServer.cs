@@ -287,18 +287,46 @@ namespace Lib.GAB.Server
                     required = p.Required,
                     defaultValue = p.DefaultValue
                 }).ToList(),
-                responseFields = t.ResponseFields.Count > 0 ? t.ResponseFields.Select(r => new
-                {
-                    name = r.Name,
-                    type = r.Type,
-                    description = r.Description,
-                    always = r.Always,
-                    nullable = r.Nullable
-                }).ToList() : null,
+                outputSchema = t.ResponseFields.Count > 0 ? BuildOutputSchema(t.ResponseFields) : null,
                 requiresAuth = t.RequiresAuth
             }).ToList();
 
             await SendResponseAsync(connection, request.Id, new { tools });
+        }
+
+        private static Dictionary<string, object> BuildOutputSchema(List<ToolResponseFieldInfo> fields)
+        {
+            var properties = new Dictionary<string, object>();
+            var required = new List<string>();
+
+            foreach (var f in fields)
+            {
+                var prop = new Dictionary<string, object>();
+
+                if (f.Nullable)
+                    prop["type"] = new[] { f.Type, "null" };
+                else
+                    prop["type"] = f.Type;
+
+                if (!string.IsNullOrEmpty(f.Description))
+                    prop["description"] = f.Description;
+
+                properties[f.Name] = prop;
+
+                if (f.Always)
+                    required.Add(f.Name);
+            }
+
+            var schema = new Dictionary<string, object>
+            {
+                ["type"] = "object",
+                ["properties"] = properties
+            };
+
+            if (required.Count > 0)
+                schema["required"] = required;
+
+            return schema;
         }
 
         private async Task HandleToolsCallAsync(IConnection connection, GabpRequest request)
