@@ -336,9 +336,9 @@ namespace Lib.GAB.Server
                 }
 
                 object arguments = null;
+                // Try "parameters" first (GABS sends this), fall back to "arguments" for compatibility
                 if (!callParams.TryGetValue("parameters", out arguments))
                     callParams.TryGetValue("arguments", out arguments);
-
                 var result = await _toolRegistry.CallToolAsync(toolName, arguments);
                 
                 await SendResponseAsync(connection, request.Id, result);
